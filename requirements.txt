@@ -1,0 +1,5 @@
+streamlit
+qrcode
+Pillow
+streamlit-qrcode-scanner
+pandas
