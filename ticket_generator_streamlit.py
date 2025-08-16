@@ -61,12 +61,12 @@ def generate_token(event_type, date, adults, children):
     return hashed_token, token_id
 
 
-def save_ticket_info(hashed_token,token_id, event_type, date, adults, children, gen_time, filename, nombre):
+def save_ticket_info(hashed_token, token_id, event_type, date, adults, children, gen_time, filename, nombre, email):
     file_exists = os.path.isfile(CSV_FILE)
     with open(CSV_FILE, mode="a", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile, delimiter=';')
         if not file_exists:
-            writer.writerow(["hashed_token","token_id", "event_type", "date", "adults", "children", "generated_at", "ticket_filename", "nombre"])
+            writer.writerow(["hashed_token", "token_id", "event_type", "date", "adults", "children", "generated_at", "ticket_filename", "nombre", "email", "estado"])
         writer.writerow([
             hashed_token,
             token_id,
@@ -76,7 +76,9 @@ def save_ticket_info(hashed_token,token_id, event_type, date, adults, children, 
             children,
             gen_time,
             filename,
-            nombre
+            nombre,
+            email,
+            "valido"
         ])
 
 
@@ -290,6 +292,7 @@ def main():
         st.write("Genera tickets digitales para eventos con códigos QR.")
 
         nombre = st.text_input("Nombre (opcional)")
+        email = st.text_input("Email (opcional)")
         event_type = st.selectbox("Evento", EVENT_TYPES)
         date = st.date_input("Día de compra", value=datetime.now()).strftime("%Y-%m-%d")
         adults = st.number_input("Número de Adultos", min_value=0, value=1, step=1)
@@ -307,7 +310,7 @@ def main():
                 os.makedirs(folder, exist_ok=True)
                 filename = os.path.join(folder, f"ticket_{event_type}_{date}_{gen_time.replace(':','-').replace('.','-')}.png")
                 create_ticket_image(hashed_token, filename,event_type,adults,children,nombre)
-                save_ticket_info(hashed_token,token_id, event_type, date, adults, children, gen_time, filename, nombre)
+                save_ticket_info(hashed_token, token_id, event_type, date, adults, children, gen_time, filename, nombre, email)
                 st.success(f"Ticket generado y guardado como {filename}\n Token ID: {token_id}")
                 upload_csv(CSV_FILE)    # Safely merges and uploads
                 if os.path.exists(filename):
