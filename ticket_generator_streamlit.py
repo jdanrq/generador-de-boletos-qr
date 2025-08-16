@@ -333,15 +333,26 @@ def main():
             # Check if hash matches any token_id in tickets.csv
             found = False
             if os.path.exists(CSV_FILE):
+                # Read all rows
                 with open(CSV_FILE, newline='', encoding='utf-8') as csvfile:
                     reader = csv.DictReader(csvfile, delimiter=';')
-                    for row in reader:
-                        token_id = row.get('token_id')
-                        if token_id and hashlib.sha256(token_id.encode()).hexdigest() == qr_code:
-                            found = True
-                            st.success(f"Ticket válido! Detalles: {row}")
-                            # upload_csv(CSV_FILE)    # Safely merges and uploads
-                            break
+                    rows = list(reader)
+                    fieldnames = reader.fieldnames
+                # Find and update the matching row
+                for row in rows:
+                    token_id = row.get('token_id')
+                    if token_id and hashlib.sha256(token_id.encode()).hexdigest() == qr_code:
+                        found = True
+                        st.success(f"Ticket válido! Detalles: {row}")
+                        # Mark as used
+                        row['estado'] = 'invalido'
+                        # Write all rows back
+                        with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
+                            writer.writeheader()
+                            writer.writerows(rows)
+                        upload_csv(CSV_FILE)    # Safely merges and uploads
+                        break
             if not found:
                 st.error("Ticket NO encontrado o invalido!")
 
