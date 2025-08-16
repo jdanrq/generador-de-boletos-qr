@@ -8,12 +8,14 @@ from datetime import datetime
 import os
 import uuid
 import hashlib
+from tickets_sync_service import upload_csv, download_csv
+from dotenv import load_dotenv
 
+load_dotenv()
 # Constants
 EVENT_TYPES = ["Independencia", "Dia de Muertos"]
 BACKGROUND_IMAGE = "ticket_bg_independencia.png"  # Placeholder, replace with your own image
 CSV_FILE = "tickets.csv"
-
 
 def validate_inputs(event_type, date, adults, children):
     errors = []
@@ -211,6 +213,7 @@ def login_window():
             if username == ADMIN_USER and password == ADMIN_PASS:
                 st.session_state['login_success'] = True
                 st.success("Acceso concedido.")
+                download_csv(CSV_FILE)  # Downloads the latest CSV from remote  
             else:
                 st.error("Usuario o contraseña incorrectos.")
         st.stop()
@@ -306,6 +309,7 @@ def main():
                 create_ticket_image(hashed_token, filename,event_type,adults,children,nombre)
                 save_ticket_info(hashed_token,token_id, event_type, date, adults, children, gen_time, filename, nombre)
                 st.success(f"Ticket generado y guardado como {filename}\n Token ID: {token_id}")
+                upload_csv(CSV_FILE)    # Safely merges and uploads
                 if os.path.exists(filename):
                     st.image(filename, caption="Ticket Generado", use_container_width=True)
                     with open(filename, "rb") as img_file:
@@ -333,6 +337,7 @@ def main():
                         if token_id and hashlib.sha256(token_id.encode()).hexdigest() == qr_code:
                             found = True
                             st.success(f"Ticket válido! Detalles: {row}")
+                            # upload_csv(CSV_FILE)    # Safely merges and uploads
                             break
             if not found:
                 st.error("Ticket NO encontrado o invalido!")

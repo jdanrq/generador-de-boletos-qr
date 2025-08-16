@@ -3,3 +3,5 @@ qrcode
 Pillow
 streamlit-qrcode-scanner
 pandas
+google-api-python-client
+google-auth
