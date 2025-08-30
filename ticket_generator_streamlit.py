@@ -115,8 +115,8 @@ def create_ticket_image(token, output_filename,event_type,adults, children,nombr
 
     # Make QR code 30% bigger
     qr_w, qr_h = qr_img.size
-    new_qr_w = int(qr_w * 1.5)
-    new_qr_h = int(qr_h * 1.5)
+    new_qr_w = int(qr_w * 1.9)
+    new_qr_h = int(qr_h * 1.9)
     qr_img = qr_img.resize((new_qr_w, new_qr_h), Image.LANCZOS)
     qr_w, qr_h = qr_img.size
     bg_w, bg_h = bg.size
