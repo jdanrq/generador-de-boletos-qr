@@ -10,6 +10,7 @@ import uuid
 import hashlib
 from tickets_sync_service import upload_csv, download_csv
 from dotenv import load_dotenv
+from ticket_search import find_ticket_by_hash
 
 load_dotenv()
 # Constants
@@ -225,7 +226,7 @@ def main():
 
     tab = st.sidebar.radio(
         "Selecciona una opción:",
-        ("Generar Ticket", "Validar código QR", "Administrar tickets"),
+        ("Generar Ticket", "Validar código QR", "Administrar tickets", "Check-in"),
         index=0
     )
 
@@ -355,6 +356,100 @@ def main():
                         break
             if not found:
                 st.error("Ticket NO encontrado o invalido!")
+    
+    elif tab == "Check-in":
+        st.header("Check-in de tickets")
+        st.write("Escanea el código QR con el lector.")
+
+        # Initialize session state keys before creating widgets
+        if "checkin_hashed_token" not in st.session_state:
+            st.session_state["checkin_hashed_token"] = ""
+        if "ticket_details" not in st.session_state:
+            st.session_state["ticket_details"] = None
+        if "checkin_confirmed" not in st.session_state:
+            st.session_state["checkin_confirmed"] = False
+
+        # Callbacks must modify the widget-backed session state
+        def clear_hashed_token():
+            st.session_state["checkin_hashed_token"] = ""
+            st.session_state["ticket_details"] = None
+            st.session_state["checkin_confirmed"] = False
+            # no direct modification of widget after instantiation outside callback
+
+        def confirm_checkin():
+            # read token from session state (widget value)
+            token = st.session_state.get("checkin_hashed_token", "")
+            if not token:
+                st.session_state["checkin_confirmed"] = False
+                return
+
+            # update CSV
+            import csv, os
+            if not os.path.exists(CSV_FILE):
+                st.session_state["checkin_confirmed"] = False
+                return
+
+            with open(CSV_FILE, newline="", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile, delimiter=";")
+                rows = list(reader)
+                fieldnames = reader.fieldnames
+
+            updated = False
+            for row in rows:
+                if row.get("hashed_token") == token:
+                    row["estado"] = "invalido"
+                    updated = True
+                    break
+
+            if updated:
+                with open(CSV_FILE, mode="w", newline="", encoding="utf-8") as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=";")
+                    writer.writeheader()
+                    writer.writerows(rows)
+                # clear widget-backed key via session state (allowed inside callback)
+                st.session_state["checkin_hashed_token"] = ""
+                st.session_state["ticket_details"] = None
+                st.session_state["checkin_confirmed"] = True
+            else:
+                st.session_state["checkin_confirmed"] = False
+
+        # Create the text input (do NOT pass `value=` to avoid conflicts)
+        # Place input and clear button side-by-side using columns
+        col_input, col_clear = st.columns([8, 1])
+        with col_input:
+            st.text_input("Código escaneado (hashed_token)", key="checkin_hashed_token")
+        with col_clear:
+            st.button("🗑️", on_click=clear_hashed_token, help="Limpiar campo")
+
+        # Validate ticket (this sets ticket_details; doesn't modify the widget key)
+        if st.button("Validar Ticket"):
+            hashed_token = st.session_state.get("checkin_hashed_token", "")
+            if not hashed_token:
+                st.warning("Por favor, ingresa el código escaneado.")
+            else:
+                ticket = find_ticket_by_hash(hashed_token, CSV_FILE)
+                if ticket:
+                    st.session_state["ticket_details"] = ticket
+                    st.session_state["checkin_confirmed"] = False
+                    st.success("Ticket encontrado:")
+                    st.markdown(f"""
+                        **Nombre:** {ticket.get('nombre', '')}  
+                        **Adultos:** {ticket.get('adults', '')}  
+                        **Niños:** {ticket.get('children', '')}  
+                        **Fecha de generación:** {ticket.get('generated_at', '')}  
+                        **Estado:** {ticket.get('estado', '')}
+                    """)
+                else:
+                    st.session_state["ticket_details"] = None
+                    st.error("Ticket NO encontrado o inválido.")
+
+        # Show Confirm button only when a ticket is loaded and not yet confirmed
+        if st.session_state.get("ticket_details") and not st.session_state.get("checkin_confirmed"):
+            st.button("Confirmar Check-in", on_click=confirm_checkin)
+
+        # Show success message if confirmation completed
+        if st.session_state.get("checkin_confirmed"):
+            st.success("Check-in confirmado. El estado del ticket ha sido actualizado a 'invalido'.")
 
 if __name__ == "__main__":
     main()
