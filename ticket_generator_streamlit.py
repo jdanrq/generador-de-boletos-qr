@@ -11,7 +11,7 @@ import hashlib
 from tickets_sync_service import upload_csv, download_csv
 from dotenv import load_dotenv
 from ticket_search import find_ticket_by_hash
-
+from streamlit_qrcode_scanner import qrcode_scanner
 load_dotenv()
 # Constants
 EVENT_TYPES = ["Independencia", "Dia de Muertos"]
@@ -221,13 +221,43 @@ def login_window():
             else:
                 st.error("Usuario o contraseña incorrectos.")
         st.stop()
+# ---- Used for QR code scanning in Check-in tab ----
+
+# ---- Used for QR code scanning in Check-in tab ----
+
+# Step 1: Initialize session state variables
+if 'is_scanning' not in st.session_state:
+    st.session_state.is_scanning = False
+if 'checkin_hashed_token' not in st.session_state:
+    st.session_state.checkin_hashed_token = ""
+# NEW: Temporary variable to hold the scanned value
+if 'temp_scanned_value' not in st.session_state:
+    st.session_state.temp_scanned_value = ""
+
+# NEW: State update logic at the top of the script
+# This check runs on every rerun, including after a QR code is scanned.
+if st.session_state.temp_scanned_value:
+    st.session_state.checkin_hashed_token = st.session_state.temp_scanned_value
+    st.session_state.temp_scanned_value = ""
+    st.session_state.is_scanning = False
+
+
+# Define callback functions
+def start_scanning():
+    st.session_state.is_scanning = True
+
+def stop_scanning():
+    st.session_state.is_scanning = False
+    
+def clear_hashed_token():
+    st.session_state.checkin_hashed_token = ""
 
 def main():
     login_window()
 
     tab = st.sidebar.radio(
         "Selecciona una opción:",
-        ("Generar Ticket", "Validar código QR", "Administrar tickets", "Check-in"),
+        ("Generar Ticket", "Administrar tickets", "Check-in"),
         index=0
     )
 
@@ -325,39 +355,6 @@ def main():
                             file_name=os.path.basename(filename),
                             mime="image/png"
                         )
-
-    elif tab == "Validar código QR":
-        st.header("Validación de código QR")
-        st.write("Escanear un código QR de ticket para validar contra los tickets emitidos.")
-        from streamlit_qrcode_scanner import qrcode_scanner
-        qr_code = qrcode_scanner(key='qrcode_scanner')
-        if qr_code:
-            st.info(f"QR detectado: {qr_code}")
-            # Check if hash matches any token_id in tickets.csv
-            found = False
-            if os.path.exists(CSV_FILE):
-                # Read all rows
-                with open(CSV_FILE, newline='', encoding='utf-8') as csvfile:
-                    reader = csv.DictReader(csvfile, delimiter=';')
-                    rows = list(reader)
-                    fieldnames = reader.fieldnames
-                # Find and update the matching row
-                for row in rows:
-                    token_id = row.get('token_id')
-                    if token_id and hashlib.sha256(token_id.encode()).hexdigest() == qr_code:
-                        found = True
-                        st.success(f"Ticket válido! Detalles: {row}")
-                        # Mark as used
-                        row['estado'] = 'invalido'
-                        # Write all rows back
-                        with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as csvfile:
-                            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
-                            writer.writeheader()
-                            writer.writerows(rows)
-                        upload_csv(CSV_FILE)    # Safely merges and uploads
-                        break
-            if not found:
-                st.error("Ticket NO encontrado o invalido!")
     
     elif tab == "Check-in":
         st.header("Check-in de tickets")
@@ -415,14 +412,36 @@ def main():
             else:
                 st.session_state["checkin_confirmed"] = False
 
-        # Create the text input (do NOT pass `value=` to avoid conflicts)
-        # Place input and clear button side-by-side using columns
-        col_input, col_clear = st.columns([8, 1])
-        with col_input:
-            st.text_input("Código escaneado (hashed_token)", key="checkin_hashed_token")
-        with col_clear:
-            st.button("🗑️", on_click=clear_hashed_token, help="Limpiar campo")
+        # Main layout
+        col_input, col_buttons = st.columns([8, 1])
 
+        with col_input:
+            # Pass the session state variable as the value
+            st.text_input("Código escaneado:", 
+                        key="checkin_hashed_token")
+
+        with col_buttons:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.button("🗑️", on_click=clear_hashed_token, help="Limpiar campo")
+            with col2:
+                if not st.session_state.is_scanning:
+                    st.button("📷", on_click=start_scanning, help="Escanear código QR")
+                else:
+                    st.button("⏹️", on_click=stop_scanning, help="Detener cámara")
+                    
+        # Conditionally display the camera component
+        if st.session_state.is_scanning:
+            # The component returns the scanned value directly
+            scanned_value = qrcode_scanner(key='my_scanner')
+            
+            # MODIFIED: Store the scanned value in the temporary variable.
+            # This does not cause a conflict because temp_scanned_value is not tied to a widget key.
+            if scanned_value:
+                st.session_state.temp_scanned_value = scanned_value
+                stop_scanning()
+                st.rerun()
+                
         # Validate ticket (this sets ticket_details; doesn't modify the widget key)
         if st.button("Validar Ticket"):
             hashed_token = st.session_state.get("checkin_hashed_token", "")
