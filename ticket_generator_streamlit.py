@@ -434,11 +434,23 @@ def main():
                     st.session_state["ticket_details"] = ticket
                     st.session_state["checkin_confirmed"] = False
                     st.success("Ticket encontrado:")
+                    # Format generated_at to show only date (YYYY-MM-DD)
+                    gen_at = ticket.get('generated_at', '')
+                    gen_date = gen_at
+                    try:
+                        if gen_at:
+                            # Try to parse full ISO timestamp then take date
+                            gen_date = datetime.fromisoformat(gen_at).date().isoformat()
+                    except Exception:
+                        # Fallback: split on 'T' if present
+                        if isinstance(gen_at, str) and 'T' in gen_at:
+                            gen_date = gen_at.split('T')[0]
+
                     st.markdown(f"""
                         **Nombre:** {ticket.get('nombre', '')}  
                         **Adultos:** {ticket.get('adults', '')}  
                         **Niños:** {ticket.get('children', '')}  
-                        **Fecha de generación:** {ticket.get('generated_at', '')}
+                        **Fecha de generación:** {gen_date}  
                         **Comentarios:** {ticket.get('comentarios', '')}  
                         **Estado:** {ticket.get('estado', '')}
                     """)
